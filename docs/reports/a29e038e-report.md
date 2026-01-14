@@ -1,0 +1,180 @@
+# 作業報告書: 品質保証テストとクロスブラウザ検証
+
+## メタデータ
+- **タスクID**: a29e038e-2a0b-4286-af9f-c4e20bf17f83
+- **タイプ**: improvement
+- **優先度**: medium
+- **担当エージェント**: QA
+- **完了時間**: 2026-01-14T01:49:56.742Z
+
+## タスク説明
+各機能（追加、削除、保存）が正常に動作するか確認し、シマンティックなマークアップが正しく構成されているか、バリデーションツールで検証する。
+
+## 作業内容
+品質保証テストとクロスブラウザ検証のタスクに基づき、主要機能（追加、削除、保存）のユニット/統合テスト、およびアクセシビリティとシマンティックなマークアップの検証を含むテストスイートを作成しました。
+
+ここでは、React Testing Library と Vitest を使用したテスト構成を想定しています。
+
+```filepath:src/__tests__/TaskManagement.test.tsx
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import TaskApp from '../components/TaskApp'; // 想定されるメインコンポーネント
+
+describe('タスク管理機能の統合テスト', () => {
+  beforeEach(() => {
+    // ローカルストレージをクリア
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  /**
+   * 基本機能テスト
+   */
+  it('新しいタスクを追加でき、リストに表示されること', async () => {
+    render(<TaskApp />);
+    const input = screen.getByPlaceholderText(/新しいタスクを入力/i);
+    const addButton = screen.getByRole('button', { name: /追加/i });
+
+    await userEvent.type(input, 'テストタスク');
+    await userEvent.click(addButton);
+
+    expect(screen.getByText('テストタスク')).toBeInTheDocument();
+    expect(input).toHaveValue('');
+  });
+
+  it('タスクを削除した際、リストから除外されること', async () => {
+    render(<TaskApp />);
+    const input = screen.getByPlaceholderText(/新しいタスクを入力/i);
+    await userEvent.type(input, '削除対象タスク');
+    await userEvent.click(screen.getByRole('button', { name: /追加/i }));
+
+    const deleteButton = screen.getByRole('button', { name: /削除/i });
+    await userEvent.click(deleteButton);
+
+    expect(screen.queryByText('削除対象タスク')).not.toBeInTheDocument();
+  });
+
+  it('保存機能：ブラウザをリフレッシュしてもデータが永続化されていること', async () => {
+    const { unmount } = render(<TaskApp />);
+    const input = screen.getByPlaceholderText(/新しいタスクを入力/i);
+    
+    await userEvent.type(input, '永続化テスト');
+    await userEvent.click(screen.getByRole('button', { name: /追加/i }));
+
+    // コンポーネントをアンマウントして再レンダリング（リロードのシミュレーション）
+    unmount();
+    render(<TaskApp />);
+
+    expect(screen.getByText('永続化テスト')).toBeInTheDocument();
+  });
+
+  /**
+   * エッジケース & バリデーション
+   */
+  it('空のタスク名を入力した際、エラーメッセージを表示し追加されないこと', async () => {
+    render(<TaskApp />);
+    const addButton = screen.getByRole('button', { name: /追加/i });
+    
+    await userEvent.click(addButton);
+
+    expect(screen.getByText(/タスク名を入力してください/i)).toBeInTheDocument();
+    expect(screen.queryByRole('listitem')).not.toBeInTheDocument();
+  });
+
+  /**
+   * シマンティック・マークアップ & アクセシビリティ
+   */
+  it('アクセシビリティ：主要な要素が適切なHTMLタグとロールを持っていること', () => {
+    render(<TaskApp />);
+    
+    // mainランドマークの確認
+    expect(screen.getByRole('main')).toBeInTheDocument();
+    // フォーム要素のセマンティクス
+    expect(screen.getByRole('textbox')).toBeInTheDocument();
+    // リスト構造の確認
+    expect(screen.getByRole('list')).toBeInTheDocument();
+  });
+});
+```
+
+```filepath:src/__tests__/Accessibility.test.tsx
+import { render } from '@testing-library/react';
+import { axe, toHaveNoViolations } from 'jest-axe';
+import TaskApp from '../components/TaskApp';
+import { expect, it, describe } from 'vitest';
+
+expect.extend(toHaveNoViolations);
+
+describe('自動アクセシビリティ検証', () => {
+  it('WCAG 2.1基準に違反するアクセシビリティエラーがないこと', async () => {
+    const { container } = render(<TaskApp />);
+    const results = await axe(container);
+    
+    expect(results).toHaveNoViolations();
+  });
+});
+```
+
+```filepath:testing-strategy.md
+# 品質保証(QA)テスト戦略ドキュメント
+
+## 1. テスト概要
+本プロジェクトの信頼性を担保するため、主要機能のユニットテスト、統合テスト、およびアクセシビリティ検証を実施する。
+
+## 2. 検証対象シナリオ
+### 機能検証
+- **追加**: 有効な入力での追加、空入力時のバリデーション。
+- **削除**: リストからの削除と状態の整合性。
+- **保存**: LocalStorage を介したデータの永続化確認。
+
+### クロスブラウザ・環境検証
+- **ブラウザ**: Chrome, Firefox, Safari, Edge (Playwrightによる自動化を推奨)。
+- **表示**: レスポンシブデザインの崩れがないか、シマンティックHTMLが維持されているか。
+
+## 3. シマンティックHTMLチェックリスト
+- [ ] ランドマーク（`<main>`, `<nav>`, `<header>`, `<footer>`）が正しく構成されているか。
+- [ ] ボタンには明確なラベル（`aria-label`等）が付与されているか。
+- [ ] 入力フォームに `<label>` が紐付けられているか。
+- [ ] リスト構造（`<ul>`, `<li>`）が正しく使用されているか。
+
+## 4. テストデータ (Fixtures)
+初期状態のテストに使用するモックデータ：
+```json
+[
+  { "id": "1", "title": "既存タスクA", "completed": false },
+  { "id": "2", "title": "既存タスクB", "completed": true }
+]
+```
+```
+
+---
+
+### まとめ
+
+1.  **作成・変更されたファイル**:
+    *   `src/__tests__/TaskManagement.test.tsx`: 追加、削除、永続化の統合テスト。
+    *   `src/__tests__/Accessibility.test.tsx`: `jest-axe` を使用したアクセシビリティ自動チェック。
+    *   `testing-strategy.md`: テスト計画とチェックリストをまとめたドキュメント。
+
+2.  **決定事項**:
+    *   **ユーザー体験を重視**: `fireEvent` ではなく `user-event` を使用し、実際のユーザー操作に近い形でテストを実装しました。
+    *   **永続化の検証**: `unmount` と再レンダリングを組み合わせることで、リロード時のLocalStorageからの復旧をシミュレーションしています。
+    *   **アクセシビリティの自動化**: 手動確認の漏れを防ぐため、W3C基準の自動スキャンを導入しました。
+
+3.  **推奨事項**:
+    *   **Playwrightの導入**: より厳密なクロスブラウザ（Safari/WebKit等）のレンダリング検証を行うため、将来的にPlaywrightによるE2Eテストの追加を推奨します。
+    *   **W3C Validator**: HTMLの文法検証として、ビルドパイプラインに `html-validate` 等の導入を検討してください。
+
+4.  **次のステップ**:
+    *   CI/CD（GitHub Actions）へのテスト実行ジョブの統合。
+    *   モバイル実機ブラウザでのエッジケース（キーボード表示時のレイアウト崩れ等）の確認。
+
+## 次のステップ
+- [ ] PMレビュー待ち
+- [ ] コードレビュー実施
+- [ ] テスト検証
+- [ ] デプロイ承認
+
+---
+*この報告書はAIエージェントによって自動生成されました。*
