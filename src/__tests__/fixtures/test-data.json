@@ -1,0 +1,28 @@
+{
+  "validUsers": [
+    {
+      "id": 1,
+      "username": "tester01",
+      "email": "test01@example.com",
+      "age": 25,
+      "bio": "안녕하세요, 테스트 유저입니다."
+    },
+    {
+      "id": 2,
+      "username": "김개발",
+      "email": "dev.kim@company.co.kr",
+      "age": 40,
+      "bio": "Senior Fullstack Developer"
+    }
+  ],
+  "invalidUsers": [
+    {
+      "id": 3,
+      "username": "a",
+      "reason": "Username too short",
+      "email": "invalid-email",
+      "age": -1,
+      "bio": "Too long...".padEnd(205, '!')
+    }
+  ]
+}
