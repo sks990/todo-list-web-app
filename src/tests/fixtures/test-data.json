@@ -1,0 +1,27 @@
+{
+  "users": [
+    {
+      "id": "user001",
+      "username": "tester_01",
+      "email": "test01@example.com",
+      "description": "Fixed length string for testing purposes"
+    },
+    {
+      "id": "user002",
+      "username": "tester_02",
+      "email": "test02@example.com",
+      "description": "Short description                   "
+    }
+  ],
+  "products": [
+    {
+      "code": "PROD_001",
+      "price": 15000,
+      "stock": 100
+    }
+  ],
+  "metadata": {
+    "version": "1.0.0",
+    "generatedAt": "2023-11-23T00:00:00Z"
+  }
+}
