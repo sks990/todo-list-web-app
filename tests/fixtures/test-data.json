@@ -1,0 +1,19 @@
+{
+  "validUser": {
+    "id": "qa_tester_01",
+    "email": "tester@example.com",
+    "role": "admin"
+  },
+  "edgeCases": {
+    "emptyPayload": {},
+    "invalidToken": "ey-invalid-token-string",
+    "longString": "a".repeat(1000)
+  },
+  "mockPayloads": [
+    {
+      "id": 1,
+      "priority": "critical",
+      "action": "system_check"
+    }
+  ]
+}
