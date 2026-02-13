@@ -1,79 +1,35 @@
 import { Task, TaskStatus } from '../types/task';
 
-const STORAGE_KEY = 'webapp_tasks';
+const STORAGE_KEY = 'kanban_tasks';
 
-class TaskService {
-  /**
-   * 모든 Task를 로드합니다.
-   */
-  public getAll(): Task[] {
+export const TaskService = {
+  // 모든 태스크 가져오기
+  getTasks: (): Task[] => {
     const data = localStorage.getItem(STORAGE_KEY);
-    if (!data) return [];
-    try {
-      return JSON.parse(data);
-    } catch (e) {
-      console.error("Failed to parse tasks from LocalStorage", e);
-      return [];
+    if (!data) {
+      // 초기 데이터 셋업
+      const initialTasks: Task[] = [
+        { id: '1', title: '프로젝트 기획하기', description: '요구사항 정의 및 분석', status: 'TODO', createdAt: Date.now() },
+        { id: '2', title: 'UI 컴포넌트 개발', description: 'Tailwind를 이용한 버튼 구현', status: 'IN_PROGRESS', createdAt: Date.now() },
+      ];
+      TaskService.saveTasks(initialTasks);
+      return initialTasks;
     }
-  }
+    return JSON.parse(data);
+  },
 
-  /**
-   * 새로운 Task를 저장합니다.
-   */
-  public save(title: string, description: string = ''): Task {
-    const tasks = this.getAll();
-    const newTask: Task = {
-      id: Date.now().toString(), // 고유 ID 생성
-      title,
-      description,
-      status: 'todo',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
+  // 태스크 상태 업데이트
+  updateStatus: (taskId: string, newStatus: TaskStatus): Task[] => {
+    const tasks = TaskService.getTasks();
+    const updatedTasks = tasks.map((task) =>
+      task.id === taskId ? { ...task, status: newStatus } : task
+    );
+    TaskService.saveTasks(updatedTasks);
+    return updatedTasks;
+  },
 
-    tasks.push(newTask);
-    this.persist(tasks);
-    return newTask;
-  }
-
-  /**
-   * Task의 상태를 업데이트합니다.
-   */
-  public updateStatus(id: string, status: TaskStatus): Task | null {
-    const tasks = this.getAll();
-    const index = tasks.findIndex(t => t.id === id);
-    
-    if (index === -1) return null;
-
-    tasks[index] = {
-      ...tasks[index],
-      status,
-      updatedAt: Date.now()
-    };
-
-    this.persist(tasks);
-    return tasks[index];
-  }
-
-  /**
-   * Task를 삭제합니다.
-   */
-  public delete(id: string): boolean {
-    const tasks = this.getAll();
-    const filteredTasks = tasks.filter(t => t.id !== id);
-    
-    if (tasks.length === filteredTasks.length) return false;
-
-    this.persist(filteredTasks);
-    return true;
-  }
-
-  /**
-   * LocalStorage에 데이터를 직렬화하여 저장합니다. (Private)
-   */
-  private persist(tasks: Task[]): void {
+  // 로컬 스토리지 저장
+  saveTasks: (tasks: Task[]): void => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-  }
-}
-
-export const taskService = new TaskService();
+  },
+};
