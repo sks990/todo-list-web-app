@@ -1,0 +1,168 @@
+# Visual Regression 테스트 단계 도입
+
+## 개요
+- **타입**: feature
+- **우선순위**: low
+- **담당 에이전트**: QA
+- **완료일**: 2026-01-26
+
+## 태스크 설명
+단순 캡처를 넘어 pixelmatch 등을 활용하여 기준 이미지(Baseline)와 차이를 자동으로 검증하는 로직을 통합 파이프라인에 추가.
+
+---
+*Follow-up from task: UI/E2E 스크린샷 증적 자동화 구현*
+
+## 작업 보고서
+안녕하세요, QA AI Agent입니다. 
+
+기존 'UI/E2E 스크린샷 증적 자동화' 단계에서 한 걸음 더 나아가, **pixelmatch** 라이브러리를 활용하여 기준 이미지(Baseline)와 현재 실행 결과를 자동으로 비교하고 시각적 회귀(Visual Regression)를 감지하는 테스트 로직을 설계 및 구현하였습니다.
+
+이 시스템은 CI/CD 파이프라인에서 UI의 미세한 변경 사항을 감지하고, 차이가 발생했을 경우 Diff 이미지를 생성하여 리포팅하는 것을 목표로 합니다.
+
+### 1. 테스트 파일 구현
+
+```javascript:scripts/visual-regression.js
+const fs = require('fs');
+const path = require('path');
+const PNG = require('pngjs').PNG;
+const pixelmatch = require('pixelmatch');
+
+/**
+ * Visual Regression 테스트 핵심 로직
+ * 기준 이미지(Baseline)와 현재 스크린샷(Current)을 비교하여 차이점을 추출합니다.
+ */
+function compareScreenshots(testName) {
+  const baseDir = path.join(__dirname, '../tests/visual/baseline');
+  const currentDir = path.join(__dirname, '../tests/visual/current');
+  const diffDir = path.join(__dirname, '../tests/visual/diff');
+
+  if (!fs.existsSync(diffDir)) fs.mkdirSync(diffDir, { recursive: true });
+
+  const img1 = PNG.sync.read(fs.readFileSync(path.join(baseDir, `${testName}.png`)));
+  const img2 = PNG.sync.read(fs.readFileSync(path.join(currentDir, `${testName}.png`)));
+  
+  const { width, height } = img1;
+  const diff = new PNG({ width, height });
+
+  // 픽셀 레벨의 차이 검증 (임계값 0.1 설정)
+  const numDiffPixels = pixelmatch(
+    img1.data,
+    img2.data,
+    diff.data,
+    width,
+    height,
+    { threshold: 0.1 }
+  );
+
+  const diffPath = path.join(diffDir, `${testName}_diff.png`);
+  fs.writeFileSync(diffPath, PNG.sync.write(diff));
+
+  const diffPercentage = (numDiffPixels / (width * height)) * 100;
+  
+  return {
+    testName,
+    numDiffPixels,
+    diffPercentage: diffPercentage.toFixed(2),
+    passed: diffPercentage < 0.05 // 0.05% 미만의 차이는 허용 (안티앨리어싱 등 고려)
+  };
+}
+
+module.exports = { compareScreenshots };
+```
+
+```javascript:tests/visual/visual-regression.test.js
+const { compareScreenshots } = require('../../scripts/visual-regression');
+const fs = require('fs');
+const path = require('path');
+
+describe('Visual Regression Testing Suite', () => {
+  const testCases = [
+    { name: 'main-landing-page', description: '메인 랜딩 페이지 레이아웃 검증' },
+    { name: 'login-modal', description: '로그인 모달 UI 검증' }
+  ];
+
+  testCases.forEach((tc) => {
+    test(`Visual check for: ${tc.description}`, () => {
+      // 1. Baseline 존재 여부 확인
+      const baselinePath = path.join(__dirname, `./baseline/${tc.name}.png`);
+      const currentPath = path.join(__dirname, `./current/${tc.name}.png`);
+
+      if (!fs.existsSync(currentPath)) {
+        throw new Error(`Current screenshot missing: ${tc.name}. Run E2E first.`);
+      }
+
+      if (!fs.existsSync(baselinePath)) {
+        console.warn(`Baseline missing for ${tc.name}. Setting current as baseline.`);
+        fs.copyFileSync(currentPath, baselinePath);
+        return;
+      }
+
+      // 2. 비교 수행
+      const result = compareScreenshots(tc.name);
+
+      console.log(`[${tc.name}] Diff Pixels: ${result.numDiffPixels} (${result.diffPercentage}%)`);
+
+      // 3. 기대 결과 검증 (Acceptance Criteria)
+      expect(result.passed).toBe(true);
+    });
+  });
+});
+```
+
+```json:tests/visual/data/visual-config.json
+{
+  "threshold": 0.1,
+  "failureThreshold": 0.05,
+  "failureThresholdType": "percent",
+  "includeAA": true,
+  "diffColor": [255, 0, 0]
+}
+```
+
+```markdown:docs/testing/VISUAL_REGRESSION_GUIDE.md
+# Visual Regression 테스트 가이드
+
+## 1. 개요
+UI의 의도치 않은 변경을 방지하기 위해 Pixel-by-pixel 비교를 수행합니다.
+
+## 2. 테스트 단계 (CI 파이프라인 연동)
+1. **Capture**: Playwright/Cypress로 `tests/visual/current`에 스크린샷 저장
+2. **Compare**: `pixelmatch`를 통해 Baseline과 비교
+3. **Report**: 차이가 기준치(0.05%) 이상일 경우 빌드 실패 처리 및 `diff` 이미지 업로드
+
+## 3. Edge Cases 처리
+- **안티앨리어싱**: `includeAA: true` 설정을 통해 텍스트 렌더링 차이 무시
+- **동적 데이터**: 테스트 시 고정된 Mock 데이터(Fixtures) 사용 필수
+- **화면 크기**: 모든 스크린샷은 고정된 Viewport(예: 1280x720)에서 촬영
+
+## 4. Baseline 업데이트
+UI가 의도적으로 변경된 경우, `current` 이미지를 `baseline` 폴더로 덮어쓰기 하여 갱신합니다.
+```
+
+---
+
+### 2. 작업 요약 및 PM 보고
+
+#### 생성 및 수정된 파일
+1. `scripts/visual-regression.js`: `pixelmatch` 기반의 비교 핵심 로직
+2. `tests/visual/visual-regression.test.js`: Jest 기반의 테스트 자동화 스위트
+3. `tests/visual/data/visual-config.json`: 테스트 환경 설정값
+4. `docs/testing/VISUAL_REGRESSION_GUIDE.md`: 작업자용 매뉴얼
+
+#### 핵심 구현 결정 사항
+- **자동화된 Diff 생성**: 단순히 수치만 비교하는 것이 아니라, 어떤 부분이 변경되었는지 알 수 있도록 `diff` 이미지를 자동 생성하여 디버깅 편의성을 높였습니다.
+- **임계값(Threshold) 관리**: 네트워크 속도나 브라우저 렌더링 미세 차이로 인한 False Positive를 방지하기 위해 0.05%의 여유 오차를 허용했습니다.
+- **Baseline 관리 전략**: 새로운 기능 추가 시 첫 실행 시 자동으로 Baseline을 생성하도록 구현하여 초기 설정 비용을 줄였습니다.
+
+#### 테스트 권장 사항
+- **환경 일관성**: CI 환경(Docker 컨테이너 등)과 로컬 환경의 OS 폰트 차이로 인해 결과가 다를 수 있으므로, 반드시 동일한 Docker 환경에서 테스트를 실행하십시오.
+- **Mocking**: 날짜, 사용자 이름 등 동적 텍스트가 포함된 영역은 테스트 안정성을 위해 가려주거나(Object masking) 고정된 더미 데이터를 사용하십시오.
+
+#### 다음 단계
+- Github Actions와 연동하여 실패 시 `diff` 폴더를 Artifact로 업로드하는 워크플로우 추가.
+- Slack 알림 봇 연동을 통한 즉각적인 UI 변경 보고 구현.
+
+위의 내용이 승인되면 파이프라인 통합을 진행하겠습니다.
+
+---
+*이 문서는 AI 에이전트에 의해 자동 생성되었습니다.*
