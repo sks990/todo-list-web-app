@@ -1,6 +1,6 @@
 import React from 'react';
 import { Todo } from '../types/todo';
-import { CheckIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { Trash2, CheckCircle, Circle } from 'lucide-react';
 
 interface TodoItemProps {
   todo: Todo;
@@ -10,34 +10,25 @@ interface TodoItemProps {
 
 export const TodoItem: React.FC<TodoItemProps> = ({ todo, onToggle, onDelete }) => {
   return (
-    <li className="group flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl shadow-sm transition-all hover:shadow-md hover:border-blue-200 mb-3 animate-fadeIn">
-      <div className="flex items-center space-x-4 flex-1">
-        <button
-          onClick={() => onToggle(todo.id)}
-          className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
-            todo.completed
-              ? 'bg-blue-500 border-blue-500'
-              : 'border-slate-300 hover:border-blue-400'
-          }`}
-          aria-label={todo.completed ? 'Mark as incomplete' : 'Mark as complete'}
+    <div className="flex items-center justify-between p-4 mb-2 bg-white rounded-lg shadow-sm border border-gray-100 hover:border-blue-200 transition-colors group">
+      <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => onToggle(todo.id)}>
+        <button 
+          aria-label={todo.completed ? "Task completed" : "Mark as completed"}
+          className="text-blue-500 focus:outline-none"
         >
-          {todo.completed && <CheckIcon className="w-4 h-4 text-white" />}
+          {todo.completed ? <CheckCircle className="w-6 h-6" /> : <Circle className="w-6 h-6 text-gray-300" />}
         </button>
-        <span
-          className={`text-sm sm:text-base transition-all duration-300 ${
-            todo.completed ? 'line-through text-slate-400' : 'text-slate-700'
-          }`}
-        >
+        <span className={`text-gray-800 ${todo.completed ? 'line-through text-gray-400' : ''}`}>
           {todo.text}
         </span>
       </div>
       <button
         onClick={() => onDelete(todo.id)}
-        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+        className="text-gray-400 hover:text-red-500 transition-colors md:opacity-0 group-hover:opacity-100 focus:opacity-100"
         aria-label="Delete task"
       >
-        <TrashIcon className="w-5 h-5" />
+        <Trash2 className="w-5 h-5" />
       </button>
-    </li>
+    </div>
   );
 };
