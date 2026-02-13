@@ -1,0 +1,66 @@
+// 데이터베이스 스키마 정의 (Prisma)
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  name              String?
+  passwordHash      String?   // 비밀번호 해싱 결과 저장 (OAuth 전용 사용자는 null 가능)
+  emailVerified     DateTime? // 이메일 인증 완료 시간
+  image             String?   // 프로필 이미지 URL
+  role              UserRole  @default(USER)
+  
+  // 보안 및 상태 관리
+  emailVerificationToken String? @unique
+  passwordResetToken     String? @unique
+  passwordResetExpires   DateTime?
+  
+  // 타임스탬프
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // 소셜 로그인 연동 (확장성)
+  accounts          Account[]
+  sessions          Session[]
+
+  @@index([email])
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

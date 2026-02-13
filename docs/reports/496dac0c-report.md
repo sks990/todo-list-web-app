@@ -1,0 +1,175 @@
+# 작업 보고서: 사용자 인증 데이터베이스 스키마 설계
+
+## 메타데이터
+- **태스크 ID**: 496dac0c-6f2e-42a8-a060-69fa94cc2566
+- **타입**: feature
+- **우선순위**: critical
+- **담당 에이전트**: database
+- **완료 시간**: 2026-02-09T11:37:40.377Z
+
+## 태스크 설명
+Users 테이블 구조 설계, 비밀번호 해싱을 위한 필드 및 이메일 인증 상태 관리를 위한 스키마 작성
+
+## 작업 내용
+안녕하세요, PM AI Agent입니다.
+
+요청하신 **'사용자 인증 데이터베이스 스키마 설계'** 작업을 위해 Prisma ORM을 사용한 스키마 설계와 더불어, 이에 대응하는 TypeScript 타입 정의 및 프론트엔드 연동을 위한 기본적인 컴포넌트 구조를 작성하였습니다. 이 설계는 보안과 확장성을 고려하여 작성되었습니다.
+
+### 1. 작업 할당 및 요구사항 분석
+- **담당**: backend (DB 스키마), tech_lead (설계 검토), frontend (타입 연동)
+- **우선순위**: Critical
+- **주요 기능**: 비밀번호 해싱 스토리지, 이메일 인증 상태, 소셜 로그인 확장성 확보
+
+### 2. 실제 코드 구현
+
+```filepath:prisma/schema.prisma
+// 데이터베이스 스키마 정의 (Prisma)
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  name              String?
+  passwordHash      String?   // 비밀번호 해싱 결과 저장 (OAuth 전용 사용자는 null 가능)
+  emailVerified     DateTime? // 이메일 인증 완료 시간
+  image             String?   // 프로필 이미지 URL
+  role              UserRole  @default(USER)
+  
+  // 보안 및 상태 관리
+  emailVerificationToken String? @unique
+  passwordResetToken     String? @unique
+  passwordResetExpires   DateTime?
+  
+  // 타임스탬프
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // 소셜 로그인 연동 (확장성)
+  accounts          Account[]
+  sessions          Session[]
+
+  @@index([email])
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+```
+
+```filepath:src/types/auth.ts
+// 프론트엔드에서 사용할 인증 관련 타입 정의
+export type UserRole = 'USER' | 'ADMIN';
+
+export interface User {
+  id: string;
+  email: string;
+  name?: string | null;
+  image?: string | null;
+  emailVerified?: Date | null;
+  role: UserRole;
+  createdAt: Date;
+}
+
+export interface AuthStatus {
+  isAuthenticated: boolean;
+  user: User | null;
+  isLoading: boolean;
+}
+```
+
+```filepath:src/hooks/useAuth.ts
+// 인증 상태 관리를 위한 커스텀 훅 예시
+import { useState, useEffect } from 'react';
+import { AuthStatus, User } from '../types/auth';
+
+export const useAuth = () => {
+  const [authStatus, setAuthStatus] = useState<AuthStatus>({
+    isAuthenticated: false,
+    user: null,
+    isLoading: true,
+  });
+
+  useEffect(() => {
+    // 실제 구현에서는 API 호출 또는 NextAuth.js 등의 세션 확인 로직이 들어갑니다.
+    const checkAuth = async () => {
+      try {
+        // Mocking API call
+        setAuthStatus(prev => ({ ...prev, isLoading: false }));
+      } catch (error) {
+        setAuthStatus({ isAuthenticated: false, user: null, isLoading: false });
+      }
+    };
+    checkAuth();
+  }, []);
+
+  return authStatus;
+};
+```
+
+### 3. 작업 요약 및 후속 조치
+
+#### 1) 생성/수정된 파일 목록
+- `prisma/schema.prisma`: Users, Accounts, Sessions 테이블 정의 및 관계 설정.
+- `src/types/auth.ts`: 데이터베이스 구조를 반영한 TypeScript 인터페이스 정의.
+- `src/hooks/useAuth.ts`: 프론트엔드에서 인증 상태에 접근하기 위한 기본 Hook.
+
+#### 2) 주요 설계 결정 사항
+- **보안**: `passwordHash` 필드를 명명하여 원문 비밀번호가 아님을 명시하고, `emailVerified` 필드를 통해 인증 여부를 관리합니다.
+- **확장성**: `Account` 테이블을 별도로 분리하여 Google, GitHub 등 외부 OAuth 공급자를 쉽게 추가할 수 있는 구조(NextAuth 표준)를 채택했습니다.
+- **성능**: 자주 조회되는 `email` 필드에 인덱싱을 추가하였습니다.
+
+#### 3) 테스트 권장 사항
+- **QA**: `prisma db push` 명령어를 통해 로컬 DB에 스키마를 적용하고, `passwordHash`에 더미 데이터를 넣어 조회가 정상적으로 되는지 확인하십시오.
+- **백엔드**: 비밀번호 해싱 시 `bcrypt` 또는 `argon2` 라이브러리를 사용하여 스키마에 정의된 필드에 정상적으로 저장되는지 유닛 테스트를 수행하십시오.
+
+#### 4) 후속 작업 (Next Steps)
+1. **[Backend]** `bcrypt`를 활용한 회원가입(Sign-up) API 구현
+2. **[Backend]** JWT 또는 Session 기반 인증 로직 완성
+3. **[Frontend]** 설계된 스키마 기반의 회원가입/로그인 폼 UI 개발 (Tailwind CSS 적용)
+4. **[DevOps]** DB 마이그레이션 파이프라인 구성
+
+작업이 완료되었습니다. 검토 후 승인 바랍니다.
+
+## 다음 단계
+- [ ] PM 리뷰 대기
+- [ ] 코드 리뷰 진행
+- [ ] 테스트 검증
+- [ ] 배포 승인
+
+---
+*이 보고서는 AI 에이전트에 의해 자동 생성되었습니다.*
