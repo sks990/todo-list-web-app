@@ -1,0 +1,10 @@
+/* Add any global styles here if needed */
+/* Ensure Tailwind CSS is configured correctly */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', sans-serif; /* Example: Using Inter font */
+  background-color: #f3f4f6; /* Default background */
+}
