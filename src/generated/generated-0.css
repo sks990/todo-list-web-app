@@ -1,0 +1,12 @@
+/* src/index.css */
+/* Tailwind CSS를 import하거나 기본 스타일을 정의합니다. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', sans-serif; /* 예시 폰트 */
+  @apply bg-gray-100 text-gray-900;
+}
+
+/* 추가적인 전역 스타일 */
