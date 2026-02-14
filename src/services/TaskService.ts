@@ -1,35 +1,31 @@
-import { Task, TaskStatus } from '../types/task';
+import { Task } from '../types/task';
 
-const STORAGE_KEY = 'kanban_tasks';
+const LOCAL_STORAGE_KEY = 'kanbanTasks';
 
 export const TaskService = {
-  // 모든 태스크 가져오기
   getTasks: (): Task[] => {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (!data) {
-      // 초기 데이터 셋업
-      const initialTasks: Task[] = [
-        { id: '1', title: '프로젝트 기획하기', description: '요구사항 정의 및 분석', status: 'TODO', createdAt: Date.now() },
-        { id: '2', title: 'UI 컴포넌트 개발', description: 'Tailwind를 이용한 버튼 구현', status: 'IN_PROGRESS', createdAt: Date.now() },
+    const tasksJson = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (!tasksJson) {
+      // 초기 데이터 예시
+      return [
+        { id: 'task-1', title: 'Implement Kanban Board UI', priority: 'high', status: 'todo' },
+        { id: 'task-2', title: 'Design Drag and Drop Logic', priority: 'medium', status: 'todo' },
+        { id: 'task-3', title: 'Refactor Card Component', priority: 'low', status: 'inProgress' },
+        { id: 'task-4', title: 'Write Unit Tests', priority: 'medium', status: 'done' },
       ];
-      TaskService.saveTasks(initialTasks);
-      return initialTasks;
     }
-    return JSON.parse(data);
+    return JSON.parse(tasksJson);
   },
 
-  // 태스크 상태 업데이트
-  updateStatus: (taskId: string, newStatus: TaskStatus): Task[] => {
+  updateStatus: (taskId: string, newStatus: Task['status']): void => {
     const tasks = TaskService.getTasks();
-    const updatedTasks = tasks.map((task) =>
+    const updatedTasks = tasks.map(task =>
       task.id === taskId ? { ...task, status: newStatus } : task
     );
-    TaskService.saveTasks(updatedTasks);
-    return updatedTasks;
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedTasks));
   },
 
-  // 로컬 스토리지 저장
-  saveTasks: (tasks: Task[]): void => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-  },
+  updateTasks: (tasks: Task[]): void => {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(tasks));
+  }
 };
